@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.2
+
+- First release via automated tokenless OIDC publishing from GitHub Actions
+  (Trusted Publisher configured on pub.dev). No source changes.
+
 ## 0.0.1
 
 Initial release.
