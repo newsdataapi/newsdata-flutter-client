@@ -1,14 +1,24 @@
 name: Publish to pub.dev
 
-# Publishes to pub.dev when a GitHub Release is published. Create a release
-# whose tag matches the version in pubspec.yaml (e.g. tag "v0.0.1").
+# Publishes to pub.dev when a v-prefixed tag is pushed (e.g. v0.0.2).
+# Optionally trigger manually from the Actions tab via "Run workflow".
 #
 # Tokenless publishing via OIDC: configure a "Publisher" on pub.dev once at
 #   https://pub.dev/packages/newsdataapi/admin
-# with GitHub Actions, this repo, and the workflow filename `publish.yml`.
+# with GitHub Actions, this repo, tag pattern `v{{version}}`, and tick at
+# least "Enable publishing from `push` events" (and optionally
+# "Enable publishing from `workflow_dispatch` events" to allow the
+# manual-trigger publish here).
+#
+# Note: pub.dev's OIDC trusted publishing does NOT accept `release` events
+# (only `push` and `workflow_dispatch`), so this workflow triggers on tag
+# push. Creating a GitHub Release for documentation is separate and can be
+# done before or after — it no longer fires the publish.
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
 
 permissions:
   contents: read
