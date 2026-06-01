@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (Dart ${{ matrix.dart }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dart: ['stable', '3.0']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ matrix.dart }}
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Analyze
+        run: dart analyze --fatal-infos
+
+      - name: Format check
+        run: dart format --output=none --set-exit-if-changed lib test example
+
+      - name: Test
+        run: dart test

@@ -1,0 +1,28 @@
+name: newsdataapi
+description: >-
+  Official Dart/Flutter client (SDK) for the Newsdata.io News API: typed
+  methods for real-time, historical, crypto, and stock-market news with
+  validation, retries, pagination, and typed errors.
+version: 0.0.1
+homepage: https://newsdata.io
+repository: https://github.com/newsdataapi/newsdata-flutter-client
+issue_tracker: https://github.com/newsdataapi/newsdata-flutter-client/issues
+documentation: https://pub.dev/documentation/newsdataapi/latest/
+
+topics:
+  - news
+  - news-api
+  - newsdata
+  - sdk
+  - api-client
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  http: ^1.1.0
+  meta: ^1.10.0
+
+dev_dependencies:
+  lints: ^3.0.0
+  test: ^1.24.0

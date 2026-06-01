@@ -1,0 +1,54 @@
+name: Publish to pub.dev
+
+# Publishes to pub.dev when a GitHub Release is published. Create a release
+# whose tag matches the version in pubspec.yaml (e.g. tag "v0.0.1").
+#
+# Tokenless publishing via OIDC: configure a "Publisher" on pub.dev once at
+#   https://pub.dev/packages/newsdataapi/admin
+# with GitHub Actions, this repo, and the workflow filename `publish.yml`.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write # required for OIDC token exchange with pub.dev
+
+jobs:
+  publish:
+    name: Test & publish
+    runs-on: ubuntu-latest
+    environment:
+      name: pub.dev
+      url: https://pub.dev/packages/newsdataapi
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed lib test example
+
+      - name: Analyze
+        run: dart analyze --fatal-infos
+
+      - name: Test
+        run: dart test
+
+      # Verify pubspec.yaml version matches the release tag (strip leading v).
+      - name: Verify tag matches pubspec version
+        run: |
+          PKG_VERSION="$(awk '/^version:/ {print $2}' pubspec.yaml)"
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG" ]; then
+            echo "::error::Release tag '$GITHUB_REF_NAME' does not match pubspec.yaml version '$PKG_VERSION'"
+            exit 1
+          fi
+
+      - name: Publish
+        run: dart pub publish --force
