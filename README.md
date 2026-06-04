@@ -1,5 +1,7 @@
 <div align="center">
 
+![Newsdata.io logo](https://raw.githubusercontent.com/newsdataapi/newsdata-flutter-client/main/newsdata-logo.png)
+
 # Newsdata.io Dart / Flutter Client
 
 [![pub.dev](https://img.shields.io/pub/v/newsdataapi.svg?logo=dart&color=0175c2)](https://pub.dev/packages/newsdataapi)
@@ -207,6 +209,21 @@ dart test                                       # 34 tests; no network needed
 
 The test suite uses `package:http/testing`'s `MockClient` to mock the API
 end-to-end. No API key required.
+
+## Related libraries
+
+Official Newsdata.io clients across languages and runtimes:
+
+- **Python** — [newsdataapi/python-client](https://github.com/newsdataapi/python-client) ([PyPI](https://pypi.org/project/newsdataapi/))
+- **Node.js** — [newsdataapi/newsdata-nodejs-client](https://github.com/newsdataapi/newsdata-nodejs-client) (npm)
+- **React (hooks)** — [newsdataapi/newsdata-reactjs-client](https://github.com/newsdataapi/newsdata-reactjs-client) (npm)
+- **PHP** — [newsdataapi/php-client](https://github.com/newsdataapi/php-client) ([Packagist](https://packagist.org/packages/newsdataio/newsdataapi))
+- **Java** — [newsdataapi/newsdata-java-sdk](https://github.com/newsdataapi/newsdata-java-sdk) (Maven Central)
+- **.NET** — [newsdataapi/newsdata-dotnet-sdk](https://github.com/newsdataapi/newsdata-dotnet-sdk) ([NuGet](https://www.nuget.org/packages/Newsdata.Api/))
+- **Go** — [newsdataapi/newsdata-go-client](https://github.com/newsdataapi/newsdata-go-client) (Go modules)
+- **MCP Server (AI assistants)** — [newsdataapi/newsdata.io-mcp](https://github.com/newsdataapi/newsdata.io-mcp) ([PyPI](https://pypi.org/project/newsdata-mcp/))
+
+Also see [free news datasets](https://github.com/newsdataapi/newsdata.io-free-datasets) for ML / NLP work.
 
 ## License
 
