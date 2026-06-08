@@ -9,6 +9,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/newsdataapi/newsdata-flutter-client/ci.yml?branch=main&logo=github&label=CI)](https://github.com/newsdataapi/newsdata-flutter-client/actions/workflows/ci.yml)
 [![Dart SDK](https://img.shields.io/badge/dart-%3E%3D3.0-0175c2?logo=dart)](https://dart.dev)
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
+[![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-85EA2D)](https://newsdata.io/openapi.json)
 
 </div>
 
