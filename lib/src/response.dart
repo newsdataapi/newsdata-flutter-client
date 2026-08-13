@@ -104,6 +104,8 @@ class Article {
     this.sentiment,
     this.sentimentStats,
     this.dataType,
+    this.symbol = const [],
+    this.marketId = const [],
   });
 
   factory Article.fromJson(Map<String, dynamic> json) => Article(
@@ -134,6 +136,8 @@ class Article {
             ? Map<String, dynamic>.from(json['sentiment_stats'] as Map)
             : null,
         dataType: json['datatype'] as String?,
+        symbol: _stringList(json['symbol']),
+        marketId: _stringList(json['market_id']),
       );
 
   final String articleId;
@@ -161,6 +165,8 @@ class Article {
   final String? sentiment;
   final Map<String, dynamic>? sentimentStats;
   final String? dataType;
+  final List<String> symbol;
+  final List<String> marketId;
 
   @override
   String toString() => 'Article(id: $articleId, title: $title)';
