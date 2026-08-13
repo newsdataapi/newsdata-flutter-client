@@ -235,6 +235,34 @@ void main() {
       expect(art.sourcePriority, 1);
     });
 
+    test('Article decodes both symbol and market_id from market results',
+        () async {
+      final mock = MockClient((_) async => jsonResponse(
+            200,
+            successBody(
+              '[{"article_id":"m1","symbol":["AAPL","MSFT"],'
+              '"market_id":["NASDAQ:AAPL","NASDAQ:MSFT"]}]',
+            ),
+          ));
+      final client = NewsDataApiClient(apiKey: 'key', httpClient: mock);
+
+      final art = (await client.market(marketId: ['AAPL'])).articles.first;
+      expect(art.symbol, ['AAPL', 'MSFT']);
+      expect(art.marketId, ['NASDAQ:AAPL', 'NASDAQ:MSFT']);
+    });
+
+    test('Article symbol and market_id default to empty when absent', () async {
+      final mock = MockClient((_) async => jsonResponse(
+            200,
+            successBody('[{"article_id":"a1","title":"t"}]'),
+          ));
+      final client = NewsDataApiClient(apiKey: 'key', httpClient: mock);
+
+      final art = (await client.latest(q: 'x')).articles.first;
+      expect(art.symbol, isEmpty);
+      expect(art.marketId, isEmpty);
+    });
+
     test('count returns aggregate map when present', () async {
       final mock = MockClient((_) async => jsonResponse(
             200,
