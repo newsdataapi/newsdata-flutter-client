@@ -4,6 +4,7 @@
 library newsdataapi;
 
 export 'src/client.dart' show NewsDataApiClient, NewsdataLogger, redactApiKey;
+export 'src/websocket.dart' show NewsDataApiWebSocket;
 export 'src/constants.dart' show Endpoint;
 export 'src/errors.dart'
     show
@@ -13,6 +14,8 @@ export 'src/errors.dart'
         NewsdataAuthException,
         NewsdataRateLimitException,
         NewsdataServerException,
-        NewsdataNetworkException;
+        NewsdataNetworkException,
+        NewsdataWebSocketException,
+        NewsdataWebSocketAuthException;
 export 'src/response.dart' show NewsdataResponse, Article;
 export 'src/validator.dart' show validateAndEncode;

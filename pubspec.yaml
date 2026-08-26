@@ -20,6 +20,9 @@ environment:
 dependencies:
   http: ^1.1.0
   meta: ^1.10.0
+  # Real-time WebSocket streaming. dart:io's WebSocket would not work on the
+  # web; web_socket_channel covers both native and browser targets.
+  web_socket_channel: ^3.0.0
 
 dev_dependencies:
   lints: ^3.0.0

@@ -17,6 +17,9 @@ abstract class Endpoint {
   static const String count = 'count';
   static const String cryptoCount = 'crypto_count';
   static const String marketCount = 'market_count';
+  static const String websocketRegister = 'websocket_register';
+  static const String websocketFetch = 'websocket_fetch';
+  static const String websocketDelete = 'websocket_delete';
 }
 
 /// API base URL.
@@ -33,6 +36,38 @@ const Duration defaultPaginationDelay = Duration(seconds: 1);
 const int sizeMin = 1;
 const int sizeMax = 50;
 
+/// HTTP method per endpoint; anything absent is a GET.
+const Map<String, String> endpointMethods = {
+  'websocket_register': 'POST',
+  'websocket_delete': 'DELETE',
+};
+
+/// Endpoints whose success envelope may carry no `results` field, so they are
+/// exempt from the results-present check applied to the news endpoints.
+const Set<String> resultsOptional = {
+  'websocket_register',
+  'websocket_fetch',
+  'websocket_delete',
+};
+
+/// Real-time WebSocket endpoint.
+const String wsBaseUrl = 'wss://ws.newsdata.io/ws/event';
+
+/// The feed a registered query matches against.
+const String wsNewsType = 'latest';
+
+/// Close code the server uses for a permanent connection rejection.
+const int wsPolicyViolation = 1008;
+
+/// Wait before the first reconnect; doubles after each consecutive failure.
+const Duration wsReconnectDelay = Duration(seconds: 1);
+
+/// Upper bound on the reconnect delay.
+const Duration wsReconnectDelayMax = Duration(seconds: 30);
+
+/// Bound on the opening handshake.
+const Duration wsHandshakeTimeout = Duration(seconds: 10);
+
 /// Endpoint key → path appended to [baseUrl].
 const Map<String, String> endpointPaths = {
   'latest': 'latest',
@@ -43,6 +78,9 @@ const Map<String, String> endpointPaths = {
   'count': 'count',
   'crypto_count': 'crypto/count',
   'market_count': 'market/count',
+  'websocket_register': 'websocket/register',
+  'websocket_fetch': 'websocket/fetch',
+  'websocket_delete': 'websocket/delete',
 };
 
 /// Endpoints that require both `from_date` and `to_date`.
@@ -292,4 +330,38 @@ const Map<String, Set<String>> filters = {
     'datatype',
     'sentiment_score',
   },
+  // Real-time query registration. No date/paging filters — a registered query
+  // matches news as it is published. `news_type` is set by websocketRegister,
+  // not by the caller.
+  'websocket_register': {
+    'q',
+    'qintitle',
+    'qinmeta',
+    'country',
+    'excludecountry',
+    'category',
+    'excludecategory',
+    'language',
+    'excludelanguage',
+    'domain',
+    'domainurl',
+    'excludedomain',
+    'prioritydomain',
+    'timezone',
+    'full_content',
+    'image',
+    'video',
+    'removeduplicate',
+    'tag',
+    'sentiment',
+    'sentiment_score',
+    'region',
+    'organization',
+    'creator',
+    'datatype',
+    'excludefield',
+    'news_type',
+  },
+  'websocket_fetch': <String>{},
+  'websocket_delete': {'registration_id'},
 };

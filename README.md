@@ -69,6 +69,9 @@ Future<void> main() async {
 | `client.count({required fromDate, required toDate, ...})` | `/1/count` | Aggregate counts |
 | `client.cryptoCount({required fromDate, required toDate, ...})` | `/1/crypto/count` | Aggregate crypto counts |
 | `client.marketCount({required fromDate, required toDate, ...})` | `/1/market/count` | Aggregate market counts |
+| `client.websocketRegister(...)` | `/1/websocket/register` | Register a real-time query |
+| `client.websocketFetch()` | `/1/websocket/fetch` | List registered queries |
+| `client.websocketDelete(id)` | `/1/websocket/delete` | Delete a registered query |
 
 Every endpoint method has **typed named parameters** for every accepted field —
 the Dart compiler enforces that only valid parameters for that endpoint
@@ -128,6 +131,84 @@ A `NewsdataValidationException` is thrown — before any HTTP request — when:
 Plus the count endpoints' `fromDate`/`toDate` are `required` at the type
 level — no runtime check needed.
 
+## Real-time news (WebSocket)
+
+Register a query first — the returned `registration_id` identifies it from then on:
+
+```dart
+final registered = await client.websocketRegister(q: 'bitcoin', language: ['en']);
+final registrationId = registered.aggregate!['registration_id'] as String;
+```
+
+`websocketRegister` takes the familiar filter parameters (`q`, `country`,
+`language`, `domain`, …) — no date or paging filters, since a registered query
+matches news as it is published. Registering an identical query twice throws
+`NewsdataApiException` with `statusCode` 409; the existing id is in the
+response body. `websocketFetch()` lists every registered query and
+`websocketDelete(id)` removes one.
+
+Then stream — each response has the familiar `status` / `totalResults` /
+`results` shape:
+
+```dart
+final ws = NewsDataApiWebSocket(client);
+
+await for (final response in ws.stream(registrationId)) {
+  for (final article in response.articles) {
+    print('${article.title} - ${article.link}');
+  }
+}
+```
+
+Break out of the loop, cancel the subscription, or call `ws.close()` to stop;
+the connection is closed either way.
+
+Transient drops (network errors, server restarts, abnormal closes) are
+reconnected automatically with a capped exponential backoff. Pass
+`reconnect: false` to stop on the first disconnect instead. A permanent
+rejection — bad API key or unknown
+`registration_id`, exhausted API credits, or too many simultaneous devices — throws
+`NewsdataWebSocketAuthException` and is **not** retried.
+
+The server always accepts the handshake and then closes with code **1008** when
+the connection is refused, carrying one of three reasons: `invalid credentials
+or registration not found`, `api limit reached`, or `device limit reached` (more
+than 5 devices on one `registration_id`). Every other close code — including
+`1013` (`send timeout`, meaning the client read too slowly) — is transient and
+reconnects.
+
+**Each delivered article consumes 1 API credit per connected device.**
+
+Catch it like any other client error:
+
+```dart
+try {
+  await for (final response in ws.stream(registrationId)) {
+    // ...
+  }
+} on NewsdataWebSocketAuthException catch (e) {
+  print('rejected: ${e.message}');
+} on NewsdataWebSocketException catch (e) {
+  print('stream error: ${e.message}');
+}
+```
+
+All connection options are optional:
+
+```dart
+final ws = NewsDataApiWebSocket(
+  client,
+  baseUrl: 'wss://ws.newsdata.io/ws/event',           // staging / self-hosted
+  reconnect: true,                                     // default true
+  reconnectDelay: const Duration(seconds: 1),          // first delay; doubles each retry
+  reconnectDelayMax: const Duration(seconds: 30),      // cap on the delay
+  handshakeTimeout: const Duration(seconds: 10),       // opening handshake bound
+);
+```
+
+Streaming uses [`web_socket_channel`](https://pub.dev/packages/web_socket_channel),
+so it works on native **and** web targets.
+
 ## Error handling
 
 ```dart
@@ -157,7 +238,9 @@ NewsdataException                       (catch-all base)
 │   ├── NewsdataAuthException           (401 / 403)
 │   ├── NewsdataRateLimitException      (429; .retryAfter)
 │   └── NewsdataServerException         (5xx)
-└── NewsdataNetworkException            (.cause)
+├── NewsdataNetworkException            (.cause)
+└── NewsdataWebSocketException          (.cause — real-time stream)
+    └── NewsdataWebSocketAuthException  (policy-violation close 1008)
 ```
 
 ## Configuration
