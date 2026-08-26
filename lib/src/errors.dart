@@ -100,3 +100,26 @@ class NewsdataNetworkException extends NewsdataException {
       ? 'NewsdataNetworkException: $message (cause: $cause)'
       : 'NewsdataNetworkException: $message';
 }
+
+/// A real-time WebSocket stream failure (see `NewsDataApiWebSocket`).
+class NewsdataWebSocketException extends NewsdataException {
+  NewsdataWebSocketException(super.message, {this.cause});
+
+  /// The underlying error, when available.
+  final Object? cause;
+
+  @override
+  String toString() => cause != null
+      ? 'NewsdataWebSocketException: $message (cause: $cause)'
+      : 'NewsdataWebSocketException: $message';
+}
+
+/// The server rejected the WebSocket connection — bad API key, missing
+/// WebSocket entitlement, unknown `registration_id`, device limit reached, or
+/// exhausted quota. Never retried, regardless of the `reconnect` setting.
+class NewsdataWebSocketAuthException extends NewsdataWebSocketException {
+  NewsdataWebSocketAuthException(super.message, {super.cause});
+
+  @override
+  String toString() => 'NewsdataWebSocketAuthException: $message';
+}

@@ -593,6 +593,108 @@ class NewsDataApiClient {
     );
   }
 
+  // ---- real-time query management ---------------------------------------
+
+  /// Register a real-time WebSocket query. POST /1/websocket/register.
+  ///
+  /// Takes the familiar filter parameters (`q`, `country`, `language`,
+  /// `domain`, …) — no date or paging filters, since a registered query
+  /// matches news as it is published. The new query's id is at
+  /// `results['registration_id']`; pass it to [NewsDataApiWebSocket.stream].
+  ///
+  /// Registering an identical query twice throws [NewsdataApiException] with
+  /// `statusCode` 409; the existing id is in the response body.
+  Future<NewsdataResponse> websocketRegister({
+    String? q,
+    String? qInTitle,
+    String? qInMeta,
+    List<String>? country,
+    List<String>? excludeCountry,
+    List<String>? category,
+    List<String>? excludeCategory,
+    List<String>? language,
+    List<String>? excludeLanguage,
+    List<String>? domain,
+    List<String>? domainUrl,
+    List<String>? excludeDomain,
+    String? priorityDomain,
+    String? timezone,
+    bool? fullContent,
+    bool? image,
+    bool? video,
+    bool? removeDuplicate,
+    List<String>? tag,
+    String? sentiment,
+    double? sentimentScore,
+    List<String>? region,
+    List<String>? organization,
+    List<String>? creator,
+    List<String>? dataType,
+    List<String>? excludeField,
+    String? rawQuery,
+  }) {
+    return _dispatch(
+      Endpoint.websocketRegister,
+      {
+        'q': q,
+        'qintitle': qInTitle,
+        'qinmeta': qInMeta,
+        'country': country,
+        'excludecountry': excludeCountry,
+        'category': category,
+        'excludecategory': excludeCategory,
+        'language': language,
+        'excludelanguage': excludeLanguage,
+        'domain': domain,
+        'domainurl': domainUrl,
+        'excludedomain': excludeDomain,
+        'prioritydomain': priorityDomain,
+        'timezone': timezone,
+        'full_content': fullContent,
+        'image': image,
+        'video': video,
+        'removeduplicate': removeDuplicate,
+        'tag': tag,
+        'sentiment': sentiment,
+        'sentiment_score': sentimentScore,
+        'region': region,
+        'organization': organization,
+        'creator': creator,
+        'datatype': dataType,
+        'excludefield': excludeField,
+        'news_type': wsNewsType,
+      },
+      rawQuery: rawQuery,
+    );
+  }
+
+  /// List the account's registered real-time queries. GET /1/websocket/fetch.
+  /// One entry per query at `results['queries']`.
+  Future<NewsdataResponse> websocketFetch() =>
+      _dispatch(Endpoint.websocketFetch, const {});
+
+  /// Delete a registered real-time query. DELETE /1/websocket/delete.
+  Future<NewsdataResponse> websocketDelete(String registrationId) {
+    if (registrationId.isEmpty) {
+      throw NewsdataValidationException(
+        'registrationId must be a non-empty string',
+        param: 'registration_id',
+      );
+    }
+    return _dispatch(
+      Endpoint.websocketDelete,
+      {'registration_id': registrationId},
+    );
+  }
+
+  /// The API key, for the WebSocket handshake URL.
+  @internal
+  String get apiKeyForWebSocket => _apiKey;
+
+  /// Forward a log line from the WebSocket layer.
+  @internal
+  void logFromWebSocket(String level, String message) => _log(level, message);
+
   // ---- pagination ------------------------------------------------------
 
   /// Follow `nextPage` cursors and return one merged [NewsdataResponse],
@@ -704,14 +806,15 @@ class NewsDataApiClient {
     final query = <String, String>{...values, 'apikey': _apiKey};
     final uri = Uri.parse('$_baseUrl$path').replace(queryParameters: query);
     final logUrl = redactApiKey(uri.toString());
+    final method = endpointMethods[endpoint] ?? 'GET';
 
     Object? lastError;
     for (var attempt = 1; attempt <= _maxRetries; attempt++) {
-      _log('info', 'GET $logUrl (attempt $attempt/$_maxRetries)');
+      _log('info', '$method $logUrl (attempt $attempt/$_maxRetries)');
 
       http.Response response;
       try {
-        final request = http.Request('GET', uri);
+        final request = http.Request(method, uri);
         request.headers['Accept'] = 'application/json';
         final streamed = await _httpClient.send(request).timeout(_timeout);
         response = await http.Response.fromStream(streamed);
@@ -754,7 +857,7 @@ class NewsDataApiClient {
       if (status == 200 &&
           body != null &&
           body['status'] == 'success' &&
-          body['results'] != null) {
+          (body['results'] != null || resultsOptional.contains(endpoint))) {
         final parsed = NewsdataResponse.fromJson(body);
         if (_includeHeaders) {
           return NewsdataResponse(
