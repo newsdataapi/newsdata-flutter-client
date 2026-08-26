@@ -15,14 +15,19 @@ topics:
   - api-client
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  # 3.2 is the floor: web_socket_channel (used for real-time streaming) has no
+  # release that supports Dart 3.0/3.1 — 2.4.0 caps at <3.0.0 and 2.4.1+
+  # requires ^3.2.0.
+  sdk: '>=3.2.0 <4.0.0'
 
 dependencies:
   http: ^1.1.0
   meta: ^1.10.0
   # Real-time WebSocket streaming. dart:io's WebSocket would not work on the
   # web; web_socket_channel covers both native and browser targets.
-  web_socket_channel: ^3.0.0
+  # Widened rather than pinned to ^3.0.0 so Dart 3.2 can resolve 2.4.x while
+  # 3.3+ gets the current 3.x line.
+  web_socket_channel: '>=2.4.1 <4.0.0'
 
 dev_dependencies:
   lints: ^3.0.0

@@ -215,7 +215,8 @@ void main() {
       expect(f.channels, hasLength(1));
     });
 
-    test('a transient failure stops with a websocket error when reconnect '
+    test(
+        'a transient failure stops with a websocket error when reconnect '
         'is disabled', () async {
       final f = fakeConnector((c) {
         c.rejectHandshake(WebSocketChannelException('connection refused'));

@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dart: ['stable', '3.0']
+        dart: ['stable', '3.2']
     steps:
       - uses: actions/checkout@v4
 
