@@ -83,6 +83,18 @@ const Map<String, String> endpointPaths = {
   'websocket_delete': 'websocket/delete',
 };
 
+/// Error codes on a 429 meaning the account's API credits are exhausted rather
+/// than a transient rate limit. These are never retried — waiting out the
+/// backoff cannot conjure more credits.
+///
+/// `ApiLimitExceeded` is the documented code (see the ErrorCode enum in
+/// https://newsdata.io/openapi.json); `ApiKeyLimitExceeded` is accepted too
+/// because the API has been observed to send it and the spec is not exhaustive.
+const Set<String> quotaExhaustedCodes = {
+  'ApiLimitExceeded',
+  'ApiKeyLimitExceeded',
+};
+
 /// Endpoints that require both `from_date` and `to_date`.
 const Set<String> requiresDateRange = {'count', 'crypto_count', 'market_count'};
 
