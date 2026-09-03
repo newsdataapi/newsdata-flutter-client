@@ -306,5 +306,57 @@ void main() {
       expect(art.articleId, 'x');
       expect(art.keywords, ['a', 'b']);
     });
+
+    // A 429 covers a burst limit, a rate limit, and exhausted API credits.
+    // Only the first two are worth retrying.
+    for (final code in ['ApiLimitExceeded', 'ApiKeyLimitExceeded']) {
+      test('429 with $code is not retried', () async {
+        var calls = 0;
+        final mock = MockClient((_) async {
+          calls++;
+          return jsonResponse(
+            429,
+            '{"status":"error","results":{"message":"limit","code":"$code"}}',
+          );
+        });
+        final client = NewsDataApiClient(
+          apiKey: 'key',
+          httpClient: mock,
+          retryBackoff: const Duration(milliseconds: 1),
+          retryBackoffMax: const Duration(milliseconds: 1),
+        );
+
+        await expectLater(
+          client.latest(q: 'x'),
+          throwsA(isA<NewsdataRateLimitException>()),
+        );
+        expect(calls, 1, reason: 'exhausted quota must not retry');
+      });
+    }
+
+    test('429 without a quota code still retries', () async {
+      var calls = 0;
+      final mock = MockClient((_) async {
+        calls++;
+        if (calls == 1) {
+          return jsonResponse(
+            429,
+            '{"status":"error","results":{"message":"slow","code":"RateLimitExceeded"}}',
+          );
+        }
+        return jsonResponse(
+            200, successBody('[{"article_id":"1","title":"ok"}]'));
+      });
+      final client = NewsDataApiClient(
+        apiKey: 'key',
+        httpClient: mock,
+        retryBackoff: const Duration(milliseconds: 1),
+        retryBackoffMax: const Duration(milliseconds: 1),
+      );
+
+      final resp = await client.latest(q: 'x');
+      expect(resp.status, 'success');
+      expect(calls, 2);
+    });
   });
 }

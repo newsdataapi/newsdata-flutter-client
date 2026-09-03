@@ -875,7 +875,9 @@ class NewsDataApiClient {
 
       if (status == 429) {
         final retryAfter = _parseRetryAfter(response.headers['retry-after']);
-        if (attempt >= _maxRetries) {
+        // A 429 covers a burst limit, a rate limit, and exhausted API credits.
+        // Only the first two are worth retrying.
+        if (_quotaExhausted(body) || attempt >= _maxRetries) {
           throw NewsdataRateLimitException(
             message,
             statusCode: 429,
@@ -935,6 +937,15 @@ class NewsDataApiClient {
 
   void _log(String level, String message) {
     _logger?.call(level, '[newsdataapi] $message');
+  }
+
+  /// Whether a 429 body carries an error code meaning the account is out of
+  /// API credits, as opposed to a transient rate limit.
+  bool _quotaExhausted(Map<String, dynamic>? body) {
+    final results = body?['results'];
+    if (results is! Map) return false;
+    final code = results['code'];
+    return code is String && quotaExhaustedCodes.contains(code);
   }
 
   String _errorMessage(Map<String, dynamic>? body, int status) {
