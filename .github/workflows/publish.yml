@@ -67,5 +67,21 @@ jobs:
             exit 1
           fi
 
+      # pub.dev rejects a version that already exists, so a re-run of this
+      # workflow would fail on a release that published perfectly well.
+      - name: Skip if this version is already on pub.dev
+        id: published
+        run: |
+          VERSION="$(awk '/^version:/ {print $2}' pubspec.yaml)"
+          URL="https://pub.dev/api/packages/newsdataapi/versions/${VERSION}"
+          CODE="$(curl -sS -o /dev/null -w '%{http_code}' "$URL")"
+          if [ "$CODE" = "200" ]; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::newsdataapi ${VERSION} is already on pub.dev; skipping the publish (versions are immutable). Bump the version to publish again."
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish
+        if: steps.published.outputs.already != 'true'
         run: dart pub publish --force
