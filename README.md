@@ -59,6 +59,102 @@ Future<void> main() async {
 
 ## Endpoints
 
+The API has two versions. v2 is the current one; the v1 methods keep working
+unchanged.
+
+### v2
+
+| Method | Endpoint | Notes |
+|--------|----------|-------|
+| `client.newsV2(...)` | `/2/news` | Latest news, or historical with `fromDate` / `toDate` |
+| `client.marketV2(...)` | `/2/market` | Market / financial news |
+| `client.cryptoV2(...)` | `/2/crypto` | Cryptocurrency news |
+| `client.sourcesV2(...)` | `/2/sources` | Available sources (single page) |
+| `client.countNewsV2(...)` | `/2/count/news` | Aggregate news counts |
+| `client.countMarketV2(...)` | `/2/count/market` | Aggregate market counts |
+| `client.countCryptoV2(...)` | `/2/count/crypto` | Aggregate crypto counts |
+| `client.websocketRegister(...)` | `/2/websocket/register` | Register a real-time query |
+| `client.websocketFetch()` | `/2/websocket/fetch` | List registered queries |
+| `client.websocketDelete(id)` | `/2/websocket/delete` | Delete a registered query |
+
+v2 renames the filter vocabulary and folds the four domain filters into two.
+Dart-side the names stay camelCase; the SDK maps them to v2's snake_case form:
+
+| v1 (Dart) | v2 (Dart) | v2 (wire) |
+|-----------|-----------|-----------|
+| `qInTitle`, `qInMeta` | `qInTitle`, `qInMeta` | `q_in_title`, `q_in_meta` |
+| `excludeCountry`, `excludeCategory`, `excludeLanguage` | same | `exclude_country`, `exclude_category`, `exclude_language` |
+| `domain`, `domainUrl`, `excludeDomain`, `excludeDomainUrl` | `sourceUrl`, `excludeSourceUrl` | `source_url`, `exclude_source_url` |
+| `priorityDomain` | `sourcePriority` | `source_priority` |
+| `fullContent` | `content` | `content` |
+| `removeDuplicate`, `excludeField` | same | `remove_duplicate`, `exclude_field` |
+
+`coin` and `marketId` keep their names. Unlike the v1 count endpoints, the v2
+ones do not require `fromDate` / `toDate`.
+
+```dart
+final resp = await client.newsV2(
+  qInTitle: 'tesla',
+  sourceUrl: ['bbc.com'],
+  content: true,
+);
+print('${resp.totalResults} results, next page ${resp.nextPage}');
+```
+
+The v2 envelope spells its total and cursor `total_results` / `next_page`
+where v1 spells them `totalResults` / `nextPage`. `NewsdataResponse` reads
+either, so `totalResults`, `nextPage`, `scrollAll` and `paginate` behave the
+same whichever version answered. Pass `Endpoint.newsV2` and friends to the
+pagination helpers.
+
+There is no `/2/archive` — `newsV2` covers historical news through
+`fromDate` / `toDate`.
+
+#### v2 articles
+
+v2 renamed and regrouped the article fields, so the v2 endpoints and the
+real-time stream decode with `articlesV2` and `ArticleV2`, while the v1
+endpoints keep `articles` and `Article`:
+
+```dart
+final resp = await client.newsV2(q: 'bitcoin');
+
+for (final a in resp.articlesV2) {
+  print('${a.title} ${a.url} ${a.publishedAt}');
+  print('${a.source.name} ${a.source.priority}');
+  print(a.media.imageUrl);
+  print('${a.ai.summary} ${a.ai.sentiment.label} ${a.ai.tag}');
+}
+```
+
+| v1 (`Article`) | v2 (`ArticleV2`) |
+|----------------|------------------|
+| `articleId` | `id` |
+| `link` | `url` |
+| `pubDate` | `publishedAt` |
+| `description` | `metaDescription` |
+| `keywords` | `keyword` |
+| `symbol` | `ticker` |
+| `sourceName`, `sourceUrl`, `sourcePriority`, `sourceIcon` | `source.name`, `source.url`, `source.priority`, `source.iconUrl` |
+| `imageUrl`, `videoUrl` | `media.imageUrl`, `media.videoUrl` |
+| `sentiment`, `sentimentStats` | `ai.sentiment.label`, `ai.sentiment.score` |
+| `aiTag`, `aiRegion`, `aiOrg` | `ai.tag`, `ai.region`, `ai.organization` |
+| — | `ai.summary`, `fetchedAt`, `duplicate`, `coin`, `marketId` |
+
+The `source`, `media` and `ai` groups are never null — a group the API did not
+send has null fields and empty lists — so `a.source.name` needs no null check
+on the group itself. `ai.region` entries are comma-separated paths from the
+narrowest place to the widest (`"mumbai,maharashtra,india"`), so do not split
+them on commas.
+
+A field your plan does not include arrives as the API's notice string in place
+of the data (`"ONLY AVAILABLE IN PAID PLANS"`). Decoding tolerates it — a list
+field holds the single notice, and a withheld sentiment carries it in
+`ai.sentiment.label` — and `isPlanNotice(value)` tells it apart from real
+data.
+
+### v1
+
 | Method | Endpoint | Notes |
 |--------|----------|-------|
 | `client.latest(...)` | `/1/latest` | Real-time news |
@@ -69,9 +165,8 @@ Future<void> main() async {
 | `client.count({required fromDate, required toDate, ...})` | `/1/count` | Aggregate counts |
 | `client.cryptoCount({required fromDate, required toDate, ...})` | `/1/crypto/count` | Aggregate crypto counts |
 | `client.marketCount({required fromDate, required toDate, ...})` | `/1/market/count` | Aggregate market counts |
-| `client.websocketRegister(...)` | `/1/websocket/register` | Register a real-time query |
-| `client.websocketFetch()` | `/1/websocket/fetch` | List registered queries |
-| `client.websocketDelete(id)` | `/1/websocket/delete` | Delete a registered query |
+
+The real-time service is v2 only — there are no v1 WebSocket methods.
 
 Every endpoint method has **typed named parameters** for every accepted field —
 the Dart compiler enforces that only valid parameters for that endpoint
@@ -133,29 +228,39 @@ level — no runtime check needed.
 
 ## Real-time news (WebSocket)
 
-Register a query first — the returned `registration_id` identifies it from then on:
+The real-time service is part of API v2. Register a query first — the returned
+`registration_id` identifies it from then on:
 
 ```dart
 final registered = await client.websocketRegister(q: 'bitcoin', language: ['en']);
 final registrationId = registered.aggregate!['registration_id'] as String;
 ```
 
-`websocketRegister` takes the familiar filter parameters (`q`, `country`,
-`language`, `domain`, …) — no date or paging filters, since a registered query
-matches news as it is published. Registering an identical query twice throws
-`NewsdataApiException` with `statusCode` 409; the existing id is in the
-response body. `websocketFetch()` lists every registered query and
-`websocketDelete(id)` removes one.
+`websocketRegister` takes the same filter parameters as `newsV2` (`q`,
+`qInTitle`, `country`, `excludeCountry`, `sourceUrl`, `content`,
+`excludeField`, `timezone`, …) — the date, paging and sorting filters, `id` and
+`url` don't apply to a standing query. Registering an identical query twice
+throws `NewsdataApiException` with `statusCode` 409; the existing id is in the
+response body.
 
-Then stream — each response has the familiar `status` / `totalResults` /
-`results` shape:
+`websocketFetch()` lists every registered query: `rawResults` is a list with
+one entry per query, carrying its `registration_id`, the filters it was
+registered with (`query`), how many devices are streaming it now
+(`active_clients`) and when one last connected (`last_used`, UTC).
+`websocketDelete(id)` removes one. Once every registration the plan allows is
+in use, registering another throws a 429 `NewsdataRateLimitException` carrying
+the code `RegistrationLimitExceeded`; it is not retried, since only deleting a
+registration frees a slot.
+
+Then stream. Each response carries `status`, `totalResults` and its results,
+and its articles use the v2 layout, so decode them with `articlesV2`:
 
 ```dart
 final ws = NewsDataApiWebSocket(client);
 
 await for (final response in ws.stream(registrationId)) {
-  for (final article in response.articles) {
-    print('${article.title} - ${article.link}');
+  for (final a in response.articlesV2) {
+    print('${a.title} - ${a.url} (${a.source.name})');
   }
 }
 ```
@@ -237,6 +342,10 @@ NewsdataException                       (catch-all base)
 ├── NewsdataApiException                (.statusCode, .responseBody)
 │   ├── NewsdataAuthException           (401 / 403)
 │   ├── NewsdataRateLimitException      (429; .retryAfter)
+│   │   ├── NewsdataApiLimitExceededException     (account credits gone)
+│   │   └── NewsdataApiKeyLimitExceededException  (this key's cap gone)
+│   │   (RegistrationLimitExceeded stays on NewsdataRateLimitException —
+│   │    real-time registration slots, not credits)
 │   └── NewsdataServerException         (5xx)
 ├── NewsdataNetworkException            (.cause)
 └── NewsdataWebSocketException          (.cause — real-time stream)
@@ -268,6 +377,15 @@ is called.
 Retries cover network errors, HTTP 429, and 5xx responses. 429 honors the
 `Retry-After` header (integer seconds or HTTP-date); otherwise backoff is
 exponential. Auth and other 4xx errors are never retried.
+
+A 429 that waiting cannot fix is never retried.
+`NewsdataApiLimitExceededException` means the account's whole credit pool is
+exhausted, `NewsdataApiKeyLimitExceededException` means this one key hit its
+own cap while the account may still have credits; both extend
+`NewsdataRateLimitException`, so an existing `on NewsdataRateLimitException`
+catch keeps working. `RegistrationLimitExceeded` is also never retried, but
+keeps the plain `NewsdataRateLimitException` — it is about real-time
+registration slots, not credits, and is fixed by deleting a registration.
 
 ## Where it works
 

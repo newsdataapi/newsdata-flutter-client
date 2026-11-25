@@ -2,6 +2,8 @@
 
 import 'dart:convert';
 
+import 'article_v2.dart';
+
 /// Top-level envelope returned by every endpoint.
 ///
 /// `rawResults` holds the JSON for `results` because its shape varies by
@@ -9,7 +11,9 @@ import 'dart:convert';
 ///   - news endpoints (latest, archive, crypto, market) return a `List`;
 ///   - the count endpoints return a `Map` on the final page.
 ///
-/// Use [articles] / [aggregate] to decode it into a typed shape.
+/// Use [articles] / [articlesV2] / [aggregate] to decode it into a typed
+/// shape. [articles] decodes the v1 article layout, [articlesV2] the v2 one;
+/// the real-time stream carries v2 articles.
 class NewsdataResponse {
   NewsdataResponse({
     this.status,
@@ -20,12 +24,19 @@ class NewsdataResponse {
   });
 
   /// Decode a raw JSON map (as parsed by `jsonDecode`) into a response.
+  ///
+  /// v1 and v2 spell the envelope's total and cursor differently
+  /// (`totalResults`/`nextPage` vs `total_results`/`next_page`); either is
+  /// accepted, so [totalResults] and [nextPage] are populated whichever
+  /// version answered.
   factory NewsdataResponse.fromJson(Map<String, dynamic> json) {
     return NewsdataResponse(
       status: json['status'] as String?,
-      totalResults: (json['totalResults'] as int?) ?? 0,
+      totalResults: (json['total_results'] as int?) ??
+          (json['totalResults'] as int?) ??
+          0,
       rawResults: json['results'],
-      nextPage: json['nextPage'] as String?,
+      nextPage: (json['next_page'] as String?) ?? (json['nextPage'] as String?),
     );
   }
 
@@ -46,6 +57,22 @@ class NewsdataResponse {
     return raw
         .whereType<Map<String, dynamic>>()
         .map(Article.fromJson)
+        .toList(growable: false);
+  }
+
+  /// `rawResults` decoded as a list of v2 articles — the layout of the v2
+  /// endpoints and of the real-time stream. Returns an empty list when
+  /// `rawResults` is null, empty, or not a list (e.g. on a count endpoint's
+  /// aggregate page).
+  ///
+  /// Use [articles] instead for the v1 endpoints, whose articles spell the
+  /// same data differently (`link`, `pubDate`, `article_id`).
+  List<ArticleV2> get articlesV2 {
+    final raw = rawResults;
+    if (raw is! List) return const <ArticleV2>[];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(ArticleV2.fromJson)
         .toList(growable: false);
   }
 
@@ -75,8 +102,10 @@ class NewsdataResponse {
   }
 }
 
-/// One news article. Field names use camelCase; JSON tags use the API's
-/// snake_case.
+/// One news article from API v1. Field names use camelCase; JSON tags use the
+/// API's snake_case.
+///
+/// v2 renamed and regrouped these fields; see [ArticleV2].
 class Article {
   Article({
     required this.articleId,

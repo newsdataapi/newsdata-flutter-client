@@ -16,6 +16,9 @@ import 'response.dart';
 
 /// NewsData.io real-time WebSocket service.
 ///
+/// The real-time service is part of API v2, so registrations take the v2
+/// filter names and responses carry the v2 envelope and article layout.
+///
 /// Registers, lists, and deletes the account's real-time queries and streams
 /// the responses for a registered query. The management calls delegate to the
 /// wrapped [NewsDataApiClient]:
@@ -28,8 +31,8 @@ import 'response.dart';
 /// final id = registered.aggregate!['registration_id'] as String;
 ///
 /// await for (final response in ws.stream(id)) {
-///   for (final article in response.articles) {
-///     print(article.title);
+///   for (final article in response.articlesV2) {
+///     print('${article.title} - ${article.url} (${article.source.name})');
 ///   }
 /// }
 /// ```
@@ -83,12 +86,11 @@ class NewsDataApiWebSocket {
     List<String>? excludeCategory,
     List<String>? language,
     List<String>? excludeLanguage,
-    List<String>? domain,
-    List<String>? domainUrl,
-    List<String>? excludeDomain,
-    String? priorityDomain,
+    List<String>? sourceUrl,
+    List<String>? excludeSourceUrl,
+    String? sourcePriority,
     String? timezone,
-    bool? fullContent,
+    bool? content,
     bool? image,
     bool? video,
     bool? removeDuplicate,
@@ -112,12 +114,11 @@ class NewsDataApiWebSocket {
       excludeCategory: excludeCategory,
       language: language,
       excludeLanguage: excludeLanguage,
-      domain: domain,
-      domainUrl: domainUrl,
-      excludeDomain: excludeDomain,
-      priorityDomain: priorityDomain,
+      sourceUrl: sourceUrl,
+      excludeSourceUrl: excludeSourceUrl,
+      sourcePriority: sourcePriority,
       timezone: timezone,
-      fullContent: fullContent,
+      content: content,
       image: image,
       video: video,
       removeDuplicate: removeDuplicate,
@@ -155,7 +156,10 @@ class NewsDataApiWebSocket {
   }
 
   /// Connect and yield each response for [registrationId] as it arrives.
-  /// Responses have the familiar `status` / `totalResults` / `results` shape.
+  /// Responses carry `status`, `total_results` and `results` — read through
+  /// [NewsdataResponse.status], [NewsdataResponse.totalResults] and
+  /// [NewsdataResponse.results] — and their articles use the v2 layout, so
+  /// decode them with [NewsdataResponse.articlesV2].
   Stream<NewsdataResponse> stream(String registrationId) async* {
     if (registrationId.isEmpty) {
       throw NewsdataValidationException(

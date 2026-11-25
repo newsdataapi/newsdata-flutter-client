@@ -16,6 +16,14 @@ import 'validator.dart';
 /// request attempt and on retries; the URL is already API-key-redacted.
 typedef NewsdataLogger = void Function(String level, String message);
 
+/// Builds the exception for a 429 whose body says the API credits are gone.
+typedef _QuotaExceptionBuilder = NewsdataRateLimitException Function(
+  String message,
+  int statusCode,
+  Map<String, dynamic>? responseBody,
+  int? retryAfter,
+);
+
 /// HTTP client for the Newsdata.io API. Construct with [NewsDataApiClient.new]
 /// and call the per-endpoint methods ([latest], [archive], …). All methods
 /// return `Future<NewsdataResponse>` and throw [NewsdataException] subclasses
@@ -75,7 +83,7 @@ class NewsDataApiClient {
     if (_ownsHttpClient) _httpClient.close();
   }
 
-  // ---- endpoint methods ------------------------------------------------
+  // ---- v1 endpoint methods ---------------------------------------------
 
   /// Fetch real-time news. GET /1/latest.
   Future<NewsdataResponse> latest({
@@ -91,6 +99,7 @@ class NewsDataApiClient {
     List<String>? domain,
     List<String>? domainUrl,
     List<String>? excludeDomain,
+    List<String>? excludeDomainUrl,
     String? priorityDomain,
     Object? timeframe,
     String? timezone,
@@ -128,6 +137,7 @@ class NewsDataApiClient {
         'domain': domain,
         'domainurl': domainUrl,
         'excludedomain': excludeDomain,
+        'excludedomainurl': excludeDomainUrl,
         'prioritydomain': priorityDomain,
         'timeframe': timeframe?.toString(),
         'timezone': timezone,
@@ -167,6 +177,7 @@ class NewsDataApiClient {
     List<String>? domain,
     List<String>? domainUrl,
     List<String>? excludeDomain,
+    List<String>? excludeDomainUrl,
     String? priorityDomain,
     String? timezone,
     int? size,
@@ -205,6 +216,7 @@ class NewsDataApiClient {
         'domain': domain,
         'domainurl': domainUrl,
         'excludedomain': excludeDomain,
+        'excludedomainurl': excludeDomainUrl,
         'prioritydomain': priorityDomain,
         'timezone': timezone,
         'size': size,
@@ -241,6 +253,7 @@ class NewsDataApiClient {
     List<String>? domain,
     List<String>? domainUrl,
     List<String>? excludeDomain,
+    List<String>? excludeDomainUrl,
     String? priorityDomain,
     Object? timeframe,
     String? timezone,
@@ -272,6 +285,7 @@ class NewsDataApiClient {
         'domain': domain,
         'domainurl': domainUrl,
         'excludedomain': excludeDomain,
+        'excludedomainurl': excludeDomainUrl,
         'prioritydomain': priorityDomain,
         'timeframe': timeframe?.toString(),
         'timezone': timezone,
@@ -330,6 +344,7 @@ class NewsDataApiClient {
     List<String>? domain,
     List<String>? domainUrl,
     List<String>? excludeDomain,
+    List<String>? excludeDomainUrl,
     List<String>? language,
     List<String>? excludeLanguage,
     String? priorityDomain,
@@ -367,6 +382,7 @@ class NewsDataApiClient {
         'domain': domain,
         'domainurl': domainUrl,
         'excludedomain': excludeDomain,
+        'excludedomainurl': excludeDomainUrl,
         'language': language,
         'excludelanguage': excludeLanguage,
         'prioritydomain': priorityDomain,
@@ -411,6 +427,7 @@ class NewsDataApiClient {
     List<String>? domain,
     List<String>? domainUrl,
     List<String>? excludeDomain,
+    List<String>? excludeDomainUrl,
     bool? fullContent,
     bool? image,
     bool? video,
@@ -446,6 +463,7 @@ class NewsDataApiClient {
         'domain': domain,
         'domainurl': domainUrl,
         'excludedomain': excludeDomain,
+        'excludedomainurl': excludeDomainUrl,
         'full_content': fullContent,
         'image': image,
         'video': video,
@@ -481,6 +499,7 @@ class NewsDataApiClient {
     List<String>? domain,
     List<String>? domainUrl,
     List<String>? excludeDomain,
+    List<String>? excludeDomainUrl,
     bool? fullContent,
     bool? image,
     bool? video,
@@ -508,6 +527,7 @@ class NewsDataApiClient {
         'domain': domain,
         'domainurl': domainUrl,
         'excludedomain': excludeDomain,
+        'excludedomainurl': excludeDomainUrl,
         'full_content': fullContent,
         'image': image,
         'video': video,
@@ -537,6 +557,7 @@ class NewsDataApiClient {
     List<String>? domain,
     List<String>? domainUrl,
     List<String>? excludeDomain,
+    List<String>? excludeDomainUrl,
     List<String>? language,
     List<String>? excludeLanguage,
     bool? fullContent,
@@ -570,6 +591,7 @@ class NewsDataApiClient {
         'domain': domain,
         'domainurl': domainUrl,
         'excludedomain': excludeDomain,
+        'excludedomainurl': excludeDomainUrl,
         'language': language,
         'excludelanguage': excludeLanguage,
         'full_content': fullContent,
@@ -593,17 +615,467 @@ class NewsDataApiClient {
     );
   }
 
+  // ---- v2 endpoint methods ---------------------------------------------
+  //
+  // v2 renames the filter vocabulary to snake_case (`q_in_title`,
+  // `exclude_country`, `source_priority`, `content`, `remove_duplicate`, ...)
+  // and folds domain/domainurl/excludedomain/excludedomainurl into
+  // `source_url` / `exclude_source_url`. Responses carry `total_results` and
+  // `next_page`, which NewsdataResponse reads into totalResults / nextPage
+  // either way.
+
+  /// Fetch the latest news, or historical news with [fromDate] / [toDate].
+  /// GET /2/news.
+  ///
+  /// There is no /2/archive; this endpoint covers both.
+  Future<NewsdataResponse> newsV2({
+    String? q,
+    String? qInTitle,
+    String? qInMeta,
+    List<String>? country,
+    List<String>? excludeCountry,
+    List<String>? category,
+    List<String>? excludeCategory,
+    List<String>? language,
+    List<String>? excludeLanguage,
+    List<String>? sourceUrl,
+    List<String>? excludeSourceUrl,
+    String? sourcePriority,
+    String? fromDate,
+    String? toDate,
+    Object? timeframe,
+    String? timezone,
+    int? size,
+    bool? content,
+    bool? image,
+    bool? video,
+    String? page,
+    List<String>? tag,
+    String? sentiment,
+    double? sentimentScore,
+    List<String>? region,
+    List<String>? organization,
+    List<String>? creator,
+    List<String>? dataType,
+    List<String>? excludeField,
+    bool? removeDuplicate,
+    Object? id,
+    String? url,
+    String? sort,
+    String? rawQuery,
+  }) {
+    return _dispatch(
+      Endpoint.newsV2,
+      {
+        'q': q,
+        'q_in_title': qInTitle,
+        'q_in_meta': qInMeta,
+        'country': country,
+        'exclude_country': excludeCountry,
+        'category': category,
+        'exclude_category': excludeCategory,
+        'language': language,
+        'exclude_language': excludeLanguage,
+        'source_url': sourceUrl,
+        'exclude_source_url': excludeSourceUrl,
+        'source_priority': sourcePriority,
+        'from_date': fromDate,
+        'to_date': toDate,
+        'timeframe': timeframe?.toString(),
+        'timezone': timezone,
+        'size': size,
+        'content': content,
+        'image': image,
+        'video': video,
+        'page': page,
+        'tag': tag,
+        'sentiment': sentiment,
+        'sentiment_score': sentimentScore,
+        'region': region,
+        'organization': organization,
+        'creator': creator,
+        'datatype': dataType,
+        'exclude_field': excludeField,
+        'remove_duplicate': removeDuplicate,
+        'id': id,
+        'url': url,
+        'sort': sort,
+      },
+      rawQuery: rawQuery,
+    );
+  }
+
+  /// Fetch market / financial news. GET /2/market.
+  Future<NewsdataResponse> marketV2({
+    String? q,
+    String? qInTitle,
+    String? qInMeta,
+    List<String>? country,
+    List<String>? excludeCountry,
+    List<String>? language,
+    List<String>? excludeLanguage,
+    List<String>? sourceUrl,
+    List<String>? excludeSourceUrl,
+    String? sourcePriority,
+    String? fromDate,
+    String? toDate,
+    Object? timeframe,
+    String? timezone,
+    int? size,
+    bool? content,
+    bool? image,
+    bool? video,
+    String? page,
+    List<String>? tag,
+    String? sentiment,
+    double? sentimentScore,
+    List<String>? organization,
+    List<String>? marketId,
+    List<String>? creator,
+    List<String>? dataType,
+    List<String>? excludeField,
+    bool? removeDuplicate,
+    Object? id,
+    String? url,
+    String? sort,
+    String? rawQuery,
+  }) {
+    return _dispatch(
+      Endpoint.marketV2,
+      {
+        'q': q,
+        'q_in_title': qInTitle,
+        'q_in_meta': qInMeta,
+        'country': country,
+        'exclude_country': excludeCountry,
+        'language': language,
+        'exclude_language': excludeLanguage,
+        'source_url': sourceUrl,
+        'exclude_source_url': excludeSourceUrl,
+        'source_priority': sourcePriority,
+        'from_date': fromDate,
+        'to_date': toDate,
+        'timeframe': timeframe?.toString(),
+        'timezone': timezone,
+        'size': size,
+        'content': content,
+        'image': image,
+        'video': video,
+        'page': page,
+        'tag': tag,
+        'sentiment': sentiment,
+        'sentiment_score': sentimentScore,
+        'organization': organization,
+        'market_id': marketId,
+        'creator': creator,
+        'datatype': dataType,
+        'exclude_field': excludeField,
+        'remove_duplicate': removeDuplicate,
+        'id': id,
+        'url': url,
+        'sort': sort,
+      },
+      rawQuery: rawQuery,
+    );
+  }
+
+  /// Fetch cryptocurrency news. GET /2/crypto.
+  Future<NewsdataResponse> cryptoV2({
+    String? q,
+    String? qInTitle,
+    String? qInMeta,
+    List<String>? coin,
+    List<String>? language,
+    List<String>? excludeLanguage,
+    List<String>? sourceUrl,
+    List<String>? excludeSourceUrl,
+    String? sourcePriority,
+    String? fromDate,
+    String? toDate,
+    Object? timeframe,
+    String? timezone,
+    int? size,
+    bool? content,
+    bool? image,
+    bool? video,
+    String? page,
+    List<String>? tag,
+    String? sentiment,
+    List<String>? excludeField,
+    bool? removeDuplicate,
+    Object? id,
+    String? url,
+    String? sort,
+    String? rawQuery,
+  }) {
+    return _dispatch(
+      Endpoint.cryptoV2,
+      {
+        'q': q,
+        'q_in_title': qInTitle,
+        'q_in_meta': qInMeta,
+        'coin': coin,
+        'language': language,
+        'exclude_language': excludeLanguage,
+        'source_url': sourceUrl,
+        'exclude_source_url': excludeSourceUrl,
+        'source_priority': sourcePriority,
+        'from_date': fromDate,
+        'to_date': toDate,
+        'timeframe': timeframe?.toString(),
+        'timezone': timezone,
+        'size': size,
+        'content': content,
+        'image': image,
+        'video': video,
+        'page': page,
+        'tag': tag,
+        'sentiment': sentiment,
+        'exclude_field': excludeField,
+        'remove_duplicate': removeDuplicate,
+        'id': id,
+        'url': url,
+        'sort': sort,
+      },
+      rawQuery: rawQuery,
+    );
+  }
+
+  /// List available news sources. GET /2/sources.
+  ///
+  /// Single-page endpoint; `scrollAll` and `paginate` are not supported.
+  Future<NewsdataResponse> sourcesV2({
+    List<String>? country,
+    List<String>? category,
+    List<String>? language,
+    String? sourcePriority,
+    List<String>? sourceUrl,
+    String? rawQuery,
+  }) {
+    return _dispatch(
+      Endpoint.sourcesV2,
+      {
+        'country': country,
+        'category': category,
+        'language': language,
+        'source_priority': sourcePriority,
+        'source_url': sourceUrl,
+      },
+      rawQuery: rawQuery,
+    );
+  }
+
+  /// Fetch aggregate news counts. GET /2/count/news.
+  Future<NewsdataResponse> countNewsV2({
+    String? q,
+    String? qInTitle,
+    String? qInMeta,
+    List<String>? country,
+    List<String>? excludeCountry,
+    List<String>? category,
+    List<String>? excludeCategory,
+    List<String>? language,
+    List<String>? excludeLanguage,
+    List<String>? sourceUrl,
+    List<String>? excludeSourceUrl,
+    String? sourcePriority,
+    String? fromDate,
+    String? toDate,
+    Object? timeframe,
+    String? interval,
+    int? size,
+    bool? content,
+    bool? image,
+    bool? video,
+    String? page,
+    List<String>? tag,
+    String? sentiment,
+    double? sentimentScore,
+    List<String>? region,
+    List<String>? organization,
+    List<String>? creator,
+    List<String>? dataType,
+    bool? removeDuplicate,
+    String? sort,
+    String? rawQuery,
+  }) {
+    return _dispatch(
+      Endpoint.countNewsV2,
+      {
+        'q': q,
+        'q_in_title': qInTitle,
+        'q_in_meta': qInMeta,
+        'country': country,
+        'exclude_country': excludeCountry,
+        'category': category,
+        'exclude_category': excludeCategory,
+        'language': language,
+        'exclude_language': excludeLanguage,
+        'source_url': sourceUrl,
+        'exclude_source_url': excludeSourceUrl,
+        'source_priority': sourcePriority,
+        'from_date': fromDate,
+        'to_date': toDate,
+        'timeframe': timeframe?.toString(),
+        'interval': interval,
+        'size': size,
+        'content': content,
+        'image': image,
+        'video': video,
+        'page': page,
+        'tag': tag,
+        'sentiment': sentiment,
+        'sentiment_score': sentimentScore,
+        'region': region,
+        'organization': organization,
+        'creator': creator,
+        'datatype': dataType,
+        'remove_duplicate': removeDuplicate,
+        'sort': sort,
+      },
+      rawQuery: rawQuery,
+    );
+  }
+
+  /// Fetch aggregate market counts. GET /2/count/market.
+  Future<NewsdataResponse> countMarketV2({
+    String? q,
+    String? qInTitle,
+    String? qInMeta,
+    List<String>? country,
+    List<String>? excludeCountry,
+    List<String>? language,
+    List<String>? excludeLanguage,
+    List<String>? sourceUrl,
+    List<String>? excludeSourceUrl,
+    String? sourcePriority,
+    String? fromDate,
+    String? toDate,
+    Object? timeframe,
+    String? interval,
+    int? size,
+    bool? content,
+    bool? image,
+    bool? video,
+    String? page,
+    List<String>? tag,
+    String? sentiment,
+    double? sentimentScore,
+    List<String>? organization,
+    List<String>? marketId,
+    List<String>? creator,
+    List<String>? dataType,
+    bool? removeDuplicate,
+    String? sort,
+    String? rawQuery,
+  }) {
+    return _dispatch(
+      Endpoint.countMarketV2,
+      {
+        'q': q,
+        'q_in_title': qInTitle,
+        'q_in_meta': qInMeta,
+        'country': country,
+        'exclude_country': excludeCountry,
+        'language': language,
+        'exclude_language': excludeLanguage,
+        'source_url': sourceUrl,
+        'exclude_source_url': excludeSourceUrl,
+        'source_priority': sourcePriority,
+        'from_date': fromDate,
+        'to_date': toDate,
+        'timeframe': timeframe?.toString(),
+        'interval': interval,
+        'size': size,
+        'content': content,
+        'image': image,
+        'video': video,
+        'page': page,
+        'tag': tag,
+        'sentiment': sentiment,
+        'sentiment_score': sentimentScore,
+        'organization': organization,
+        'market_id': marketId,
+        'creator': creator,
+        'datatype': dataType,
+        'remove_duplicate': removeDuplicate,
+        'sort': sort,
+      },
+      rawQuery: rawQuery,
+    );
+  }
+
+  /// Fetch aggregate crypto counts. GET /2/count/crypto.
+  Future<NewsdataResponse> countCryptoV2({
+    String? q,
+    String? qInTitle,
+    String? qInMeta,
+    List<String>? coin,
+    List<String>? language,
+    List<String>? excludeLanguage,
+    List<String>? sourceUrl,
+    List<String>? excludeSourceUrl,
+    String? sourcePriority,
+    String? fromDate,
+    String? toDate,
+    Object? timeframe,
+    String? interval,
+    int? size,
+    bool? content,
+    bool? image,
+    bool? video,
+    String? page,
+    List<String>? tag,
+    String? sentiment,
+    bool? removeDuplicate,
+    String? sort,
+    String? rawQuery,
+  }) {
+    return _dispatch(
+      Endpoint.countCryptoV2,
+      {
+        'q': q,
+        'q_in_title': qInTitle,
+        'q_in_meta': qInMeta,
+        'coin': coin,
+        'language': language,
+        'exclude_language': excludeLanguage,
+        'source_url': sourceUrl,
+        'exclude_source_url': excludeSourceUrl,
+        'source_priority': sourcePriority,
+        'from_date': fromDate,
+        'to_date': toDate,
+        'timeframe': timeframe?.toString(),
+        'interval': interval,
+        'size': size,
+        'content': content,
+        'image': image,
+        'video': video,
+        'page': page,
+        'tag': tag,
+        'sentiment': sentiment,
+        'remove_duplicate': removeDuplicate,
+        'sort': sort,
+      },
+      rawQuery: rawQuery,
+    );
+  }
   // ---- real-time query management ---------------------------------------
 
-  /// Register a real-time WebSocket query. POST /1/websocket/register.
+  /// Register a real-time WebSocket query. POST /2/websocket/register.
   ///
-  /// Takes the familiar filter parameters (`q`, `country`, `language`,
-  /// `domain`, …) — no date or paging filters, since a registered query
-  /// matches news as it is published. The new query's id is at
-  /// `results['registration_id']`; pass it to [NewsDataApiWebSocket.stream].
+  /// The real-time service is v2 only, so this takes the same filter
+  /// parameters as [newsV2] (`q`, `qInTitle`, `country`, `excludeCountry`,
+  /// `sourceUrl`, `content`, `excludeField`, `timezone`, …) — the date, paging
+  /// and sorting filters, `id` and `url` don't apply to a standing query. The
+  /// new query's id is at `results['registration_id']`; pass it to
+  /// [NewsDataApiWebSocket.stream].
   ///
   /// Registering an identical query twice throws [NewsdataApiException] with
-  /// `statusCode` 409; the existing id is in the response body.
+  /// `statusCode` 409; the existing id is in the response body. Once every
+  /// registration the plan allows is in use, this throws a 429
+  /// [NewsdataRateLimitException] carrying the code
+  /// `RegistrationLimitExceeded`, which is not retried.
   Future<NewsdataResponse> websocketRegister({
     String? q,
     String? qInTitle,
@@ -614,12 +1086,11 @@ class NewsDataApiClient {
     List<String>? excludeCategory,
     List<String>? language,
     List<String>? excludeLanguage,
-    List<String>? domain,
-    List<String>? domainUrl,
-    List<String>? excludeDomain,
-    String? priorityDomain,
+    List<String>? sourceUrl,
+    List<String>? excludeSourceUrl,
+    String? sourcePriority,
     String? timezone,
-    bool? fullContent,
+    bool? content,
     bool? image,
     bool? video,
     bool? removeDuplicate,
@@ -637,23 +1108,22 @@ class NewsDataApiClient {
       Endpoint.websocketRegister,
       {
         'q': q,
-        'qintitle': qInTitle,
-        'qinmeta': qInMeta,
+        'q_in_title': qInTitle,
+        'q_in_meta': qInMeta,
         'country': country,
-        'excludecountry': excludeCountry,
+        'exclude_country': excludeCountry,
         'category': category,
-        'excludecategory': excludeCategory,
+        'exclude_category': excludeCategory,
         'language': language,
-        'excludelanguage': excludeLanguage,
-        'domain': domain,
-        'domainurl': domainUrl,
-        'excludedomain': excludeDomain,
-        'prioritydomain': priorityDomain,
+        'exclude_language': excludeLanguage,
+        'source_url': sourceUrl,
+        'exclude_source_url': excludeSourceUrl,
+        'source_priority': sourcePriority,
         'timezone': timezone,
-        'full_content': fullContent,
+        'content': content,
         'image': image,
         'video': video,
-        'removeduplicate': removeDuplicate,
+        'remove_duplicate': removeDuplicate,
         'tag': tag,
         'sentiment': sentiment,
         'sentiment_score': sentimentScore,
@@ -661,19 +1131,23 @@ class NewsDataApiClient {
         'organization': organization,
         'creator': creator,
         'datatype': dataType,
-        'excludefield': excludeField,
+        'exclude_field': excludeField,
         'news_type': wsNewsType,
       },
       rawQuery: rawQuery,
     );
   }
 
-  /// List the account's registered real-time queries. GET /1/websocket/fetch.
-  /// One entry per query at `results['queries']`.
+  /// List the account's registered real-time queries. GET /2/websocket/fetch.
+  ///
+  /// `results` is a list with one entry per query, each carrying its
+  /// `registration_id`, the filters it was registered with (`query`), how many
+  /// devices are streaming it now (`active_clients`) and when one last
+  /// connected (`last_used`, UTC).
   Future<NewsdataResponse> websocketFetch() =>
       _dispatch(Endpoint.websocketFetch, const {});
 
-  /// Delete a registered real-time query. DELETE /1/websocket/delete.
+  /// Delete a registered real-time query. DELETE /2/websocket/delete.
   Future<NewsdataResponse> websocketDelete(String registrationId) {
     if (registrationId.isEmpty) {
       throw NewsdataValidationException(
@@ -708,7 +1182,7 @@ class NewsDataApiClient {
     Map<String, Object?> params = const {},
     int? maxResults,
   }) async {
-    if (endpoint == Endpoint.sources) {
+    if (endpoint == Endpoint.sources || endpoint == Endpoint.sourcesV2) {
       throw NewsdataValidationException(
         'scrollAll is not supported for the sources endpoint',
       );
@@ -757,7 +1231,7 @@ class NewsDataApiClient {
     Map<String, Object?> params = const {},
     int? maxPages,
   }) async* {
-    if (endpoint == Endpoint.sources) {
+    if (endpoint == Endpoint.sources || endpoint == Endpoint.sourcesV2) {
       throw NewsdataValidationException(
         'paginate is not supported for the sources endpoint',
       );
@@ -875,9 +1349,17 @@ class NewsDataApiClient {
 
       if (status == 429) {
         final retryAfter = _parseRetryAfter(response.headers['retry-after']);
+        final keyRemaining = response.headers['x-apikey-limit-remaining'];
+        if (keyRemaining != null) {
+          _log('warn', 'X-APIKEY-Limit-Remaining: $keyRemaining');
+        }
         // A 429 covers a burst limit, a rate limit, and exhausted API credits.
         // Only the first two are worth retrying.
-        if (_quotaExhausted(body) || attempt >= _maxRetries) {
+        final quotaError = _quotaExhaustedError(body);
+        if (quotaError != null) {
+          throw quotaError(message, 429, body, retryAfter);
+        }
+        if (attempt >= _maxRetries) {
           throw NewsdataRateLimitException(
             message,
             statusCode: 429,
@@ -941,11 +1423,47 @@ class NewsDataApiClient {
 
   /// Whether a 429 body carries an error code meaning the account is out of
   /// API credits, as opposed to a transient rate limit.
-  bool _quotaExhausted(Map<String, dynamic>? body) {
+  /// The exception to throw for a 429 whose body says the API credits are
+  /// exhausted, or `null` when the 429 is a transient rate limit worth
+  /// retrying.
+  ///
+  /// Both codes mean the credits are gone and retrying cannot help, but the
+  /// remedy differs: `ApiLimitExceeded` is the account's whole pool,
+  /// `ApiKeyLimitExceeded` is this one key's own cap.
+  _QuotaExceptionBuilder? _quotaExhaustedError(Map<String, dynamic>? body) {
     final results = body?['results'];
-    if (results is! Map) return false;
+    if (results is! Map) return null;
     final code = results['code'];
-    return code is String && quotaExhaustedCodes.contains(code);
+    if (code is! String || !quotaExhaustedCodes.contains(code)) return null;
+    switch (code) {
+      case 'ApiLimitExceeded':
+        return (message, statusCode, responseBody, retryAfter) =>
+            NewsdataApiLimitExceededException(
+              message,
+              statusCode: statusCode,
+              responseBody: responseBody,
+              retryAfter: retryAfter,
+            );
+      case 'ApiKeyLimitExceeded':
+        return (message, statusCode, responseBody, retryAfter) =>
+            NewsdataApiKeyLimitExceededException(
+              message,
+              statusCode: statusCode,
+              responseBody: responseBody,
+              retryAfter: retryAfter,
+            );
+      // Registration slots are not credits, so this keeps the base exception.
+      case 'RegistrationLimitExceeded':
+        return (message, statusCode, responseBody, retryAfter) =>
+            NewsdataRateLimitException(
+              message,
+              statusCode: statusCode,
+              responseBody: responseBody,
+              retryAfter: retryAfter,
+            );
+      default:
+        return null;
+    }
   }
 
   String _errorMessage(Map<String, dynamic>? body, int status) {

@@ -13,9 +13,19 @@ export 'src/errors.dart'
         NewsdataApiException,
         NewsdataAuthException,
         NewsdataRateLimitException,
+        NewsdataApiLimitExceededException,
+        NewsdataApiKeyLimitExceededException,
         NewsdataServerException,
         NewsdataNetworkException,
         NewsdataWebSocketException,
         NewsdataWebSocketAuthException;
+export 'src/article_v2.dart'
+    show
+        ArticleV2,
+        ArticleV2Source,
+        ArticleV2Media,
+        ArticleV2Ai,
+        ArticleV2Sentiment,
+        isPlanNotice;
 export 'src/response.dart' show NewsdataResponse, Article;
 export 'src/validator.dart' show validateAndEncode;

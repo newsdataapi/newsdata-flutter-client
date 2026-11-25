@@ -78,6 +78,48 @@ class NewsdataRateLimitException extends NewsdataApiException {
       : 'NewsdataRateLimitException: $message';
 }
 
+/// Raised on 429 when the account's pool of API credits is exhausted, rather
+/// than a transient rate limit having been hit.
+///
+/// Never retried — waiting out the backoff cannot conjure more credits.
+/// Extends [NewsdataRateLimitException], so an existing `on
+/// NewsdataRateLimitException` catch keeps working.
+class NewsdataApiLimitExceededException extends NewsdataRateLimitException {
+  NewsdataApiLimitExceededException(
+    super.message, {
+    super.statusCode = 429,
+    super.responseBody,
+    super.retryAfter,
+  });
+
+  @override
+  String toString() => retryAfter != null
+      ? 'NewsdataApiLimitExceededException: $message '
+          '(retry after ${retryAfter}s)'
+      : 'NewsdataApiLimitExceededException: $message';
+}
+
+/// Raised on 429 when this specific API key's own credit cap is exhausted,
+/// even though the account's overall pool may still have credits left.
+///
+/// Never retried — waiting out the backoff cannot conjure more credits.
+/// Extends [NewsdataRateLimitException], so an existing `on
+/// NewsdataRateLimitException` catch keeps working.
+class NewsdataApiKeyLimitExceededException extends NewsdataRateLimitException {
+  NewsdataApiKeyLimitExceededException(
+    super.message, {
+    super.statusCode = 429,
+    super.responseBody,
+    super.retryAfter,
+  });
+
+  @override
+  String toString() => retryAfter != null
+      ? 'NewsdataApiKeyLimitExceededException: $message '
+          '(retry after ${retryAfter}s)'
+      : 'NewsdataApiKeyLimitExceededException: $message';
+}
+
 /// Raised on 5xx responses once retries are exhausted.
 class NewsdataServerException extends NewsdataApiException {
   NewsdataServerException(

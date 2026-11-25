@@ -17,13 +17,25 @@ abstract class Endpoint {
   static const String count = 'count';
   static const String cryptoCount = 'crypto_count';
   static const String marketCount = 'market_count';
+
+  // v2
+  static const String newsV2 = 'news_v2';
+  static const String marketV2 = 'market_v2';
+  static const String cryptoV2 = 'crypto_v2';
+  static const String sourcesV2 = 'sources_v2';
+  static const String countNewsV2 = 'count_news_v2';
+  static const String countMarketV2 = 'count_market_v2';
+  static const String countCryptoV2 = 'count_crypto_v2';
+
+  // The real-time service is v2 only.
   static const String websocketRegister = 'websocket_register';
   static const String websocketFetch = 'websocket_fetch';
   static const String websocketDelete = 'websocket_delete';
 }
 
-/// API base URL.
-const String baseUrl = 'https://newsdata.io/api/1/';
+/// API root. The paths in [endpointPaths] carry the API version, so the v1 and
+/// v2 endpoints share one base.
+const String baseUrl = 'https://newsdata.io/api/';
 
 /// HTTP defaults.
 const Duration defaultRequestTimeout = Duration(seconds: 30);
@@ -53,8 +65,8 @@ const Set<String> resultsOptional = {
 /// Real-time WebSocket endpoint.
 const String wsBaseUrl = 'wss://ws.newsdata.io/ws/event';
 
-/// The feed a registered query matches against.
-const String wsNewsType = 'latest';
+/// The feed a registered query matches against; only news so far.
+const String wsNewsType = 'news';
 
 /// Close code the server uses for a permanent connection rejection.
 const int wsPolicyViolation = 1008;
@@ -70,22 +82,34 @@ const Duration wsHandshakeTimeout = Duration(seconds: 10);
 
 /// Endpoint key → path appended to [baseUrl].
 const Map<String, String> endpointPaths = {
-  'latest': 'latest',
-  'crypto': 'crypto',
-  'archive': 'archive',
-  'sources': 'sources',
-  'market': 'market',
-  'count': 'count',
-  'crypto_count': 'crypto/count',
-  'market_count': 'market/count',
-  'websocket_register': 'websocket/register',
-  'websocket_fetch': 'websocket/fetch',
-  'websocket_delete': 'websocket/delete',
+  // v1
+  'latest': '1/latest',
+  'crypto': '1/crypto',
+  'archive': '1/archive',
+  'sources': '1/sources',
+  'market': '1/market',
+  'count': '1/count',
+  'crypto_count': '1/crypto/count',
+  'market_count': '1/market/count',
+  // v2
+  'news_v2': '2/news',
+  'market_v2': '2/market',
+  'crypto_v2': '2/crypto',
+  'sources_v2': '2/sources',
+  'count_news_v2': '2/count/news',
+  'count_market_v2': '2/count/market',
+  'count_crypto_v2': '2/count/crypto',
+  // The real-time service is v2 only.
+  'websocket_register': '2/websocket/register',
+  'websocket_fetch': '2/websocket/fetch',
+  'websocket_delete': '2/websocket/delete',
 };
 
-/// Error codes on a 429 meaning the account's API credits are exhausted rather
-/// than a transient rate limit. These are never retried — waiting out the
-/// backoff cannot conjure more credits.
+/// Error codes on a 429 that waiting cannot fix, so they are never retried.
+/// `ApiLimitExceeded` and `ApiKeyLimitExceeded` mean the API credits are
+/// exhausted rather than a transient rate limit — backoff cannot conjure more
+/// credits. `RegistrationLimitExceeded` means every real-time registration the
+/// plan allows is in use; only deleting one frees a slot.
 ///
 /// `ApiLimitExceeded` is the documented code (see the ErrorCode enum in
 /// https://newsdata.io/openapi.json); `ApiKeyLimitExceeded` is accepted too
@@ -93,6 +117,7 @@ const Map<String, String> endpointPaths = {
 const Set<String> quotaExhaustedCodes = {
   'ApiLimitExceeded',
   'ApiKeyLimitExceeded',
+  'RegistrationLimitExceeded',
 };
 
 /// Endpoints that require both `from_date` and `to_date`.
@@ -104,6 +129,9 @@ const Set<String> boolParams = {
   'image',
   'video',
   'removeduplicate',
+  // v2 spellings
+  'content',
+  'remove_duplicate',
 };
 
 /// Parameters that must be integers.
@@ -119,7 +147,13 @@ const List<List<String>> mutexGroups = [
   ['country', 'excludecountry'],
   ['category', 'excludecategory'],
   ['language', 'excludelanguage'],
-  ['domain', 'domainurl', 'excludedomain'],
+  ['domain', 'domainurl', 'excludedomain', 'excludedomainurl'],
+  // v2 names
+  ['q', 'q_in_title', 'q_in_meta'],
+  ['country', 'exclude_country'],
+  ['category', 'exclude_category'],
+  ['language', 'exclude_language'],
+  ['source_url', 'exclude_source_url'],
 ];
 
 /// Per-endpoint accepted parameters (lowercase API names).
@@ -137,6 +171,7 @@ const Map<String, Set<String>> filters = {
     'domain',
     'domainurl',
     'excludedomain',
+    'excludedomainurl',
     'prioritydomain',
     'timeframe',
     'timezone',
@@ -171,6 +206,7 @@ const Map<String, Set<String>> filters = {
     'domain',
     'domainurl',
     'excludedomain',
+    'excludedomainurl',
     'prioritydomain',
     'timezone',
     'size',
@@ -202,6 +238,7 @@ const Map<String, Set<String>> filters = {
     'domain',
     'domainurl',
     'excludedomain',
+    'excludedomainurl',
     'prioritydomain',
     'timeframe',
     'timezone',
@@ -233,6 +270,7 @@ const Map<String, Set<String>> filters = {
     'domain',
     'domainurl',
     'excludedomain',
+    'excludedomainurl',
     'language',
     'excludelanguage',
     'prioritydomain',
@@ -271,6 +309,7 @@ const Map<String, Set<String>> filters = {
     'domain',
     'domainurl',
     'excludedomain',
+    'excludedomainurl',
     'full_content',
     'image',
     'video',
@@ -300,6 +339,7 @@ const Map<String, Set<String>> filters = {
     'domain',
     'domainurl',
     'excludedomain',
+    'excludedomainurl',
     'full_content',
     'image',
     'video',
@@ -323,6 +363,7 @@ const Map<String, Set<String>> filters = {
     'domain',
     'domainurl',
     'excludedomain',
+    'excludedomainurl',
     'language',
     'excludelanguage',
     'full_content',
@@ -342,28 +383,33 @@ const Map<String, Set<String>> filters = {
     'datatype',
     'sentiment_score',
   },
-  // Real-time query registration. No date/paging filters — a registered query
-  // matches news as it is published. `news_type` is set by websocketRegister,
-  // not by the caller.
-  'websocket_register': {
+
+  // ---- v2 ------------------------------------------------------------
+  // v2 renames the filter vocabulary to snake_case and folds
+  // domain/domainurl/excludedomain/excludedomainurl into
+  // source_url/exclude_source_url.
+  'news_v2': {
     'q',
-    'qintitle',
-    'qinmeta',
+    'q_in_title',
+    'q_in_meta',
     'country',
-    'excludecountry',
+    'exclude_country',
     'category',
-    'excludecategory',
+    'exclude_category',
     'language',
-    'excludelanguage',
-    'domain',
-    'domainurl',
-    'excludedomain',
-    'prioritydomain',
+    'exclude_language',
+    'source_url',
+    'exclude_source_url',
+    'source_priority',
+    'from_date',
+    'to_date',
+    'timeframe',
     'timezone',
-    'full_content',
+    'size',
+    'content',
     'image',
     'video',
-    'removeduplicate',
+    'page',
     'tag',
     'sentiment',
     'sentiment_score',
@@ -371,7 +417,196 @@ const Map<String, Set<String>> filters = {
     'organization',
     'creator',
     'datatype',
-    'excludefield',
+    'exclude_field',
+    'remove_duplicate',
+    'id',
+    'url',
+    'sort',
+  },
+  'market_v2': {
+    'q',
+    'q_in_title',
+    'q_in_meta',
+    'country',
+    'exclude_country',
+    'language',
+    'exclude_language',
+    'source_url',
+    'exclude_source_url',
+    'source_priority',
+    'from_date',
+    'to_date',
+    'timeframe',
+    'timezone',
+    'size',
+    'content',
+    'image',
+    'video',
+    'page',
+    'tag',
+    'sentiment',
+    'sentiment_score',
+    'organization',
+    'market_id',
+    'creator',
+    'datatype',
+    'exclude_field',
+    'remove_duplicate',
+    'id',
+    'url',
+    'sort',
+  },
+  'crypto_v2': {
+    'q',
+    'q_in_title',
+    'q_in_meta',
+    'coin',
+    'language',
+    'exclude_language',
+    'source_url',
+    'exclude_source_url',
+    'source_priority',
+    'from_date',
+    'to_date',
+    'timeframe',
+    'timezone',
+    'size',
+    'content',
+    'image',
+    'video',
+    'page',
+    'tag',
+    'sentiment',
+    'exclude_field',
+    'remove_duplicate',
+    'id',
+    'url',
+    'sort',
+  },
+  'sources_v2': {
+    'country',
+    'category',
+    'language',
+    'source_priority',
+    'source_url',
+  },
+  'count_news_v2': {
+    'q',
+    'q_in_title',
+    'q_in_meta',
+    'country',
+    'exclude_country',
+    'category',
+    'exclude_category',
+    'language',
+    'exclude_language',
+    'source_url',
+    'exclude_source_url',
+    'source_priority',
+    'from_date',
+    'to_date',
+    'timeframe',
+    'interval',
+    'size',
+    'content',
+    'image',
+    'video',
+    'page',
+    'tag',
+    'sentiment',
+    'sentiment_score',
+    'region',
+    'organization',
+    'creator',
+    'datatype',
+    'remove_duplicate',
+    'sort',
+  },
+  'count_market_v2': {
+    'q',
+    'q_in_title',
+    'q_in_meta',
+    'country',
+    'exclude_country',
+    'language',
+    'exclude_language',
+    'source_url',
+    'exclude_source_url',
+    'source_priority',
+    'from_date',
+    'to_date',
+    'timeframe',
+    'interval',
+    'size',
+    'content',
+    'image',
+    'video',
+    'page',
+    'tag',
+    'sentiment',
+    'sentiment_score',
+    'organization',
+    'market_id',
+    'creator',
+    'datatype',
+    'remove_duplicate',
+    'sort',
+  },
+  'count_crypto_v2': {
+    'q',
+    'q_in_title',
+    'q_in_meta',
+    'coin',
+    'language',
+    'exclude_language',
+    'source_url',
+    'exclude_source_url',
+    'source_priority',
+    'from_date',
+    'to_date',
+    'timeframe',
+    'interval',
+    'size',
+    'content',
+    'image',
+    'video',
+    'page',
+    'tag',
+    'sentiment',
+    'remove_duplicate',
+    'sort',
+  },
+
+  // Real-time query registration. The real-time service is v2 only, so these
+  // are the v2 filter names. No date or paging filters apply — a registered
+  // query matches news as it is published. `news_type` is set by
+  // websocketRegister, not by the caller.
+  'websocket_register': {
+    'q',
+    'q_in_title',
+    'q_in_meta',
+    'country',
+    'exclude_country',
+    'category',
+    'exclude_category',
+    'language',
+    'exclude_language',
+    'source_url',
+    'exclude_source_url',
+    'source_priority',
+    'timezone',
+    'content',
+    'image',
+    'video',
+    'remove_duplicate',
+    'tag',
+    'sentiment',
+    'sentiment_score',
+    'region',
+    'organization',
+    'creator',
+    'datatype',
+    'exclude_field',
     'news_type',
   },
   'websocket_fetch': <String>{},
