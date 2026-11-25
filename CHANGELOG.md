@@ -47,6 +47,26 @@
   (`https://newsdata.io/api/`); the endpoint paths carry `1/` or `2/`. Drop the
   trailing `1/` if you override it.
 
+## 0.2.1
+
+- A 429 whose body says the API credits are exhausted is no longer retried.
+  Waiting out a backoff cannot conjure more credits, so an exhausted quota is
+  a permanent failure; a transient rate limit still retries as before.
+
+## 0.2.0
+
+- Added real-time news streaming over WebSocket: `NewsDataApiWebSocket` with
+  `websocketRegister`, `websocketFetch`, `websocketDelete` and a `stream`
+  that reconnects on transient drops with a capped exponential backoff.
+
+## 0.1.0
+
+- **Breaking:** the market `symbol` filter was renamed to `marketId`
+  (`market_id` on the wire) and the old name removed, matching the Python
+  client. `Article` models both `symbol` and `marketId`.
+- Documentation: OpenAPI 3.1 spec link, brand logo, and package-registry
+  names in the related-libraries footer.
+
 ## 0.0.2
 
 - First release via automated tokenless OIDC publishing from GitHub Actions
